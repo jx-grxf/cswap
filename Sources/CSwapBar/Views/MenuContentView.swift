@@ -24,6 +24,7 @@ struct MenuContentView: View {
             footer
         }
         .frame(width: 440)
+        .background(GeometryReader { MenuWindowSizer(contentHeight: $0.size.height) })
         .task {
             store.reload()
             await store.refreshUsage()
@@ -241,5 +242,27 @@ struct MenuContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+    }
+}
+
+/// MenuBarExtra's window grows with its content but does not shrink back when
+/// rows, banners or session lists go away; the menu then floats centered in
+/// a too-tall window with empty bands above and below. Keep the window's
+/// height pinned to the content, anchored at the top edge below the menu bar.
+private struct MenuWindowSizer: NSViewRepresentable {
+    let contentHeight: CGFloat
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        let height = contentHeight
+        DispatchQueue.main.async {
+            guard let window = view.window, height > 0 else { return }
+            let content = window.contentRect(forFrameRect: window.frame)
+            guard abs(content.height - height) > 0.5 else { return }
+            let target = NSRect(x: content.minX, y: content.maxY - height,
+                                width: content.width, height: height)
+            window.setFrame(window.frameRect(forContentRect: target), display: true)
+        }
     }
 }
