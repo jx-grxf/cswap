@@ -19,6 +19,7 @@ struct CSwapCLI {
             section("START", [
                 ("cswap", "Show every account with its usage"),
                 ("cswap <account> [args…]", "Start Claude Code with that account"),
+                ("cswap <account> --bp", "… with --dangerously-skip-permissions"),
                 ("claude [args…]", "Start the default account (after setup)"),
             ]),
             section("ACCOUNTS", [
@@ -477,7 +478,12 @@ struct CSwapCLI {
                 FileHandle.standardError.write(Data("cswap: couldn't sync \(seat.slug): \(error.localizedDescription)\n".utf8))
             }
         }
-        try ClaudeLauncher.exec(seat: seat, arguments: arguments)
+        try ClaudeLauncher.exec(seat: seat, arguments: arguments.map(expandShorthand))
+    }
+
+    /// `--bp` is short for Claude Code's bypass-permissions flag.
+    static func expandShorthand(_ argument: String) -> String {
+        argument == "--bp" ? "--dangerously-skip-permissions" : argument
     }
 
     // MARK: - Helpers

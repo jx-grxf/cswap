@@ -77,6 +77,7 @@ This creates the account and opens Claude Code's login screen. The browser autho
 |---|---|
 | `cswap` | Show every account with its usage |
 | `cswap work` | Start Claude Code with the `work` account (any arguments pass through) |
+| `cswap work --bp` | Same, with `--dangerously-skip-permissions` |
 | `claude` | Start the default account |
 | `cswap use work` | Make `work` the default for new sessions |
 | `cswap best` | Make the account with the most quota left the default |
