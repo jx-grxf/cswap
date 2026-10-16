@@ -75,7 +75,7 @@ Each release needs reviewed notes committed before its tag:
 3. Run the build and signing checks above.
 4. Commit, then push a signed, annotated `vX.Y.Z` tag.
 
-The release workflow builds, signs with Developer ID, notarizes, staples and publishes `CSwap-X.Y.Z.zip` plus a signed Sparkle `appcast.xml`. Beta tags also update the moving `beta` feed. It needs these repository settings:
+The release workflow builds, signs with Developer ID, notarizes, staples and publishes `CSwap-X.Y.Z.zip` plus a signed Sparkle `appcast.xml`. Every release also updates the moving `beta` feed, so beta users get newer stable versions too. It needs these repository settings:
 
 - Secrets: `MACOS_CERT_P12`, `MACOS_CERT_PASSWORD` (Developer ID certificate), `ASC_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID` (notarization), `CSWAPBAR_SPARKLE_PRIVATE_KEY` (update signing).
 - Variable: `CSWAPBAR_SPARKLE_PUBLIC_KEY`.

@@ -34,6 +34,11 @@ struct CSwapCLI {
                 ("cswap sessions", "List running sessions per account"),
                 ("cswap move <name> --pid <pid>", "Move a running session to another account"),
             ]),
+            section("CLAUDE DESKTOP", [
+                ("cswap desktop", "Show each account's Desktop profile"),
+                ("cswap desktop <name>", "Open Claude Desktop with that account"),
+                ("cswap desktop <name> --quit", "Quit that Desktop instance"),
+            ]),
             section("SETUP", [
                 ("cswap setup [--yes]", "One-time guided setup"),
                 ("cswap doctor", "Check the setup and every account"),
@@ -69,6 +74,8 @@ struct CSwapCLI {
                 }
             case "sessions":
                 sessions()
+            case "desktop":
+                try desktop(args)
             case "add":
                 try add(args)
             case "login":
@@ -122,6 +129,8 @@ struct CSwapCLI {
         UsageCache.save(cache)
 
         let reader = SeatCredentialReader()
+        let desktopStore = DesktopProfileStore(seats: store)
+        let desktopProfiles = desktopStore.assign(desktopStore.profiles(), to: seats)
         let nameWidth = max(seats.map(\.slug.count).max() ?? 4, 4)
         let indent = String(repeating: " ", count: nameWidth + 4)
         for seat in seats {
@@ -134,7 +143,9 @@ struct CSwapCLI {
             let sessions = store.runningSessions(of: seat).count
             let running = sessions > 0 ? Style.dim("  \(sessions) running") : ""
             let badge = isDefault ? Style.dim("  default") : ""
-            print("\(marker) \(Style.bold(name))  \(email)\(plan)\(badge)\(running)")
+            let desktop = desktopProfiles[seat.slug].flatMap(DesktopProfileStore.preferred)?.isRunning == true
+                ? Style.dim("  desktop open") : ""
+            print("\(marker) \(Style.bold(name))  \(email)\(plan)\(badge)\(running)\(desktop)")
 
             let (snapshot, problem) = results[seat.slug] ?? (nil, nil)
             if let five = snapshot?.fiveHour { print(indent + bar("5h", five)) }
@@ -305,6 +316,62 @@ struct CSwapCLI {
             }
         }
         if !any { print(Style.dim("No Claude Code sessions running.")) }
+    }
+
+    // MARK: - Claude Desktop
+
+    static func desktop(_ args: [String]) throws {
+        let desktop = DesktopProfileStore(seats: store)
+        guard let name = args.first(where: { !$0.hasPrefix("-") }) else {
+            desktopList(desktop)
+            return
+        }
+        let seat = try requireSeat(name)
+        let profile = desktop.profile(for: seat)
+
+        if args.contains("--quit") {
+            guard let profile, profile.isRunning else {
+                print(Style.dim("Claude Desktop isn't running for \(seat.slug)."))
+                return
+            }
+            desktop.quit(profile)
+            print(Style.green("✓ ") + "Quit Claude Desktop for \(Style.bold(seat.slug)).")
+            return
+        }
+
+        switch try desktop.open(seat: seat) {
+        case .activated:
+            print(Style.green("✓ ") + "Claude Desktop for \(Style.bold(seat.slug)) is already open; brought it to the front.")
+        case .launched where profile?.isLoggedIn == true:
+            print(Style.green("✓ ") + "Opened Claude Desktop for \(Style.bold(seat.slug)).")
+        case .launched:
+            let email = store.profile(of: seat)?.email
+            print(Style.green("✓ ") + "Opened a new Claude Desktop profile for \(Style.bold(seat.slug)).")
+            print(Style.dim("  Log in there\(email.map { " as \($0)" } ?? ""). The browser signs in whichever claude.ai account it has open."))
+        }
+    }
+
+    static func desktopList(_ desktop: DesktopProfileStore) {
+        guard desktop.appURL != nil else {
+            print(Style.dim("Claude Desktop isn't installed."))
+            return
+        }
+        let seats = store.seats()
+        let assigned = desktop.assign(desktop.profiles(), to: seats)
+        let nameWidth = max(seats.map(\.slug.count).max() ?? 4, 4)
+        for seat in seats {
+            let name = Style.bold(seat.slug.padding(toLength: nameWidth, withPad: " ", startingAt: 0))
+            let profiles = assigned[seat.slug] ?? []
+            guard let profile = DesktopProfileStore.preferred(profiles) else {
+                print("  \(name)  " + Style.dim("no profile — cswap desktop \(seat.slug)"))
+                continue
+            }
+            let label = (profile.isRunning ? "open" : profile.isLoggedIn ? "logged in" : "not logged in")
+                .padding(toLength: 13, withPad: " ", startingAt: 0)
+            let state = profile.isRunning ? Style.green(label) : profile.isLoggedIn ? label : Style.yellow(label)
+            let extra = profiles.count > 1 ? Style.dim("  +\(profiles.count - 1) more") : ""
+            print("  \(name)  \(state)  " + Style.dim(abbreviate(profile.dataDir.path)) + extra)
+        }
     }
 
     // MARK: - Setup

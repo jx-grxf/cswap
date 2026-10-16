@@ -6,6 +6,8 @@ struct MenuContentView: View {
     @State private var showAddSheet = false
     @State private var pendingRemoval: SeatInfo?
     @State private var updates = UpdateService.shared
+    @AppStorage("showsClaudeDesktop") private var showsClaudeDesktop = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -111,7 +113,7 @@ struct MenuContentView: View {
 
     private var accountList: some View {
         ScrollView(.vertical) {
-            VStack(spacing: 8) {
+            VStack(spacing: Theme.s2) {
                 ForEach(store.seats) { info in
                     AccountRowView(
                         info: info,
@@ -120,9 +122,13 @@ struct MenuContentView: View {
                         problem: store.usageProblems[info.id],
                         duplicateOf: store.duplicate(of: info)?.title,
                         moveTargets: store.moveTargets(from: info),
+                        showsDesktop: showsClaudeDesktop && store.isDesktopInstalled,
                         onMove: { session, target in store.move(session, to: target) },
                         onMakeDefault: { store.makeDefault(info) },
                         onOpen: { store.openSession(info) },
+                        onOpenDesktop: { store.openDesktop(info) },
+                        onQuitDesktop: { store.quitDesktop(info) },
+                        onRevealDesktop: { store.revealDesktopFolder(info) },
                         onLogIn: { store.logIn(info.seat) },
                         onReveal: { store.revealInFinder(info) },
                         onRemove: { pendingRemoval = info }
@@ -186,14 +192,16 @@ struct MenuContentView: View {
     private var footer: some View {
         VStack(spacing: 8) {
             if let action = store.lastAction {
-                HStack(spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                     Text(action)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
-                .font(.caption2)
+                .font(.caption)
+                .transition(.opacity)
             }
 
             HStack(spacing: 8) {
@@ -242,6 +250,7 @@ struct MenuContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .animation(reduceMotion ? nil : Theme.expand, value: store.lastAction)
     }
 }
 

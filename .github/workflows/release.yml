@@ -199,8 +199,9 @@ jobs:
               --title "CSwap $RELEASE_VERSION" --notes-file "$notes" --latest
           fi
 
+      # Stable releases go into the beta feed too; otherwise beta users
+      # never see a stable version that is newer than their last beta.
       - name: Publish moving beta feed
-        if: steps.release.outputs.channel == 'beta'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

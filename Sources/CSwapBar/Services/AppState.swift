@@ -10,6 +10,11 @@ struct SeatInfo: Identifiable, Equatable {
     var planLabel: String?
     var isLoggedIn: Bool
     var sessions: [RunningSession]
+    /// Claude Desktop profile logged in to this account, or the one CSwap
+    /// created for it that is still waiting for its login.
+    var desktop: DesktopProfile?
+    /// The profile is logged in to a claude.ai account no seat uses.
+    var desktopHasForeignLogin = false
 
     var runningSessions: Int { sessions.count }
 
@@ -28,16 +33,22 @@ final class AppState: ObservableObject {
     @Published private(set) var isRefreshingUsage = false
     @Published private(set) var isShellIntegrationInstalled = false
     @Published var errorMessage: String?
-    @Published var lastAction: String?
+    /// Confirmation of the last action; clears itself after a few seconds.
+    @Published var lastAction: String? {
+        didSet { scheduleLastActionClear() }
+    }
 
     @AppStorage("refreshIntervalMinutes") var refreshIntervalMinutes = 5
     @AppStorage("autoSwitchDefault") var autoSwitchDefault = true
 
     private let store = SeatStore()
+    private lazy var desktopStore = DesktopProfileStore(seats: store)
     private let reader = SeatCredentialReader()
     private let fetcher = SeatUsageFetcher()
     private var refreshTimer: Timer?
     private var watcher: SeatWatcher?
+    private var workspaceObservers: [NSObjectProtocol] = []
+    private var lastActionClear: Task<Void, Never>?
 
     /// Per-seat "do not fetch before" gate. Respected even by forced
     /// refreshes — the usage endpoint budget (~30/hour/account) is precious.
@@ -61,6 +72,32 @@ final class AppState: ObservableObject {
         refreshShellIntegration()
         restartUsageTimer()
         startWatching()
+        watchDesktopInstances()
+    }
+
+    /// Claude Desktop instances start and quit outside the app; follow them
+    /// so the menu never offers to open one that already runs.
+    private func watchDesktopInstances() {
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                guard app?.bundleIdentifier == DesktopProfileStore.bundleIdentifier else { return }
+                Task { @MainActor [weak self] in self?.reloadDesktop() }
+            }
+            workspaceObservers.append(observer)
+        }
+    }
+
+    func reloadDesktop() {
+        let assigned = desktopStore.assign(desktopStore.profiles(), to: seats.map(\.seat))
+        for index in seats.indices {
+            let profile = DesktopProfileStore.preferred(assigned[seats[index].id] ?? [])
+            let ownUUID = store.profile(of: seats[index].seat)?.accountUUID
+            let foreign = profile.map { $0.isLoggedIn && $0.accountUUID != nil && $0.accountUUID != ownUUID } ?? false
+            if seats[index].desktop != profile { seats[index].desktop = profile }
+            if seats[index].desktopHasForeignLogin != foreign { seats[index].desktopHasForeignLogin = foreign }
+        }
     }
 
     /// Follows what `cswap` and Claude Code change on disk.
@@ -137,6 +174,7 @@ final class AppState: ObservableObject {
         }
         defaultSlug = store.defaultSeat().slug
         isShellIntegrationInstalled = ShellIntegration(store: store).isInstalled
+        reloadDesktop()
     }
 
     // MARK: - Usage
@@ -386,7 +424,47 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Claude Desktop
+
+    var isDesktopInstalled: Bool { desktopStore.appURL != nil }
+
+    func openDesktop(_ info: SeatInfo) {
+        do {
+            let isNew = info.desktop == nil
+            let result = try desktopStore.open(seat: info.seat)
+            errorMessage = nil
+            if isNew {
+                lastAction = "New Claude Desktop window for \(info.title): log in there as \(info.email ?? "this account")"
+            } else if result == .launched {
+                lastAction = "Opened Claude Desktop for \(info.email ?? info.title)"
+            }
+            reloadDesktop()
+        } catch {
+            errorMessage = friendlyMessage(error)
+        }
+    }
+
+    func quitDesktop(_ info: SeatInfo) {
+        guard let profile = info.desktop else { return }
+        desktopStore.quit(profile)
+    }
+
+    func revealDesktopFolder(_ info: SeatInfo) {
+        guard let profile = info.desktop else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([profile.dataDir])
+    }
+
     // MARK: - Helpers
+
+    private func scheduleLastActionClear() {
+        lastActionClear?.cancel()
+        guard lastAction != nil else { return }
+        lastActionClear = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            guard !Task.isCancelled else { return }
+            self?.lastAction = nil
+        }
+    }
 
     private func friendlyMessage(_ error: Error) -> String {
         (error as? LocalizedError)?.errorDescription ?? error.localizedDescription

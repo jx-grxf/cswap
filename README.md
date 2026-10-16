@@ -4,7 +4,7 @@
 
 # CSwap
 
-A macOS menu bar app and the `cswap` command for running several Claude Code accounts on one Mac. Each account stays logged in, shows its live usage, and a running session moves to another account with `/swap`.
+Several Claude accounts on one Mac, all logged in at once. A menu bar app and the `cswap` command for Claude Code and Claude Desktop, with live usage for every account.
 
 [![CI](https://github.com/jx-grxf/cswap/actions/workflows/ci.yml/badge.svg)](https://github.com/jx-grxf/cswap/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jx-grxf/cswap?label=release)](https://github.com/jx-grxf/cswap/releases/latest)
@@ -12,7 +12,11 @@ A macOS menu bar app and the `cswap` command for running several Claude Code acc
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[Download](https://github.com/jx-grxf/cswap/releases/latest) · [Release notes](release-notes/) · [Contributing](CONTRIBUTING.md)
+[Download](https://github.com/jx-grxf/cswap/releases/latest) · [How it works](docs/how-it-works.md) · [Release notes](release-notes/) · [Contributing](CONTRIBUTING.md)
+
+<br>
+
+<img src="docs/screenshot.png" alt="CSwap menu with three accounts, their 5-hour and weekly usage, a Claude Desktop window per account and a running session" width="440">
 
 </div>
 
@@ -21,30 +25,28 @@ A macOS menu bar app and the `cswap` command for running several Claude Code acc
 
 ## What it does
 
-**Accounts**
+**Claude Code**
 
-- Every account gets its own Claude Code configuration folder (`CLAUDE_CONFIG_DIR`), the setup Anthropic [documents for multiple accounts](https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts). Each one logs in once and stays logged in.
-- Accounts run side by side: work in one terminal, private in another.
+- Every account gets its own configuration folder (`CLAUDE_CONFIG_DIR`), the setup Anthropic [documents for multiple accounts](https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts). Each one logs in once and stays logged in.
 - Settings, skills, plugins, hooks, agents, commands, memory and transcripts are shared with your normal `~/.claude`. User MCP servers and per-project trust follow every account.
-- Remote Control and claude.ai connectors work in every account, because each one uses a normal claude.ai login.
-- CSwap never writes, refreshes or copies a login. It only reads the current access token to ask for usage.
+- `/swap` inside a running session resumes the same conversation with another account, in the same tab. It works when the current account is already out of quota.
+- `cswap use work` or a click in the menu sets the account new `claude` sessions start with. When it hits its 5-hour or weekly limit, new sessions move to the account with the most quota left.
 
-**Switching**
+**Claude Desktop**
 
-- `/swap` inside a running session ends it and resumes the same conversation (`--resume`) with another account, in the same tab. It works when the current account is already out of quota, because the command runs before anything reaches the model.
-- **Move to …** next to a session in the menu bar does the same from outside.
-- `cswap use work` or a click in the menu bar sets the account that new `claude` sessions start with.
-- When the default account hits its 5-hour or weekly limit, new sessions start with the account that has the most quota left. You can turn this off.
+- One Claude Desktop window per account, side by side, each with its own login. The app itself has no account switcher; without this you log out and in again.
+- Your existing Desktop login shows up under the account it belongs to. MCP servers from your normal Desktop config carry over to the other windows.
+- Open, bring to the front or quit each window from the menu or with `cswap desktop <name>`.
 
-**Menu bar app**
+**Menu bar**
 
-- 5-hour, weekly and per-model usage for every account, with reset times.
-- Running sessions per account, busy or idle, with their project folder.
-- Add an account, log one in again, open Claude Code with it, or show its folder in Finder.
-- Optional: the 5-hour usage and the default account's name next to the menu bar icon.
+- 5-hour, weekly and per-model usage for every account, with reset times and how old cached numbers are.
+- Running Claude Code sessions per account, busy or idle, with **Move to …** to continue one on another account.
+- Add an account, log one in again, open Claude Code or Claude Desktop with it.
 - A warning when two accounts are logged in to the same claude.ai account.
-- Follows `cswap` live. A new account, default, login or session shows up within a second.
-- Starts at login, updates itself through Sparkle, with a Stable and a Beta channel.
+- Starts at login and updates itself through Sparkle, with a Stable and a Beta channel.
+
+CSwap never writes, refreshes or copies a login. It reads the current access token to ask for usage, nothing else. [How it works](docs/how-it-works.md) explains why that matters.
 
 ## Install
 
@@ -104,6 +106,8 @@ The dot marks the default account, the one plain `claude` starts.
 | `cswap remove <name>` | Delete an account and its login; shared data stays |
 | `/swap [account]` | Inside a session: continue it with another account |
 | `cswap sessions` | List running sessions per account |
+| `cswap desktop` | Show each account's Claude Desktop window |
+| `cswap desktop <name> [--quit]` | Open, or quit, Claude Desktop with that account |
 | `cswap move <name> --pid <pid>` | Move a running session from outside it |
 | `cswap setup` | One-time guided setup; safe to run again |
 | `cswap doctor` | Check the setup and every account |
@@ -117,33 +121,16 @@ The dot marks the default account, the one plain `claude` starts.
 
 ## Using the menu bar app
 
-Click the gauge icon to open the popover.
+Click the gauge icon to open the menu.
 
 - **Click an account** to make it the default for new sessions. **Best Quota** picks the account with the most quota left.
-- **Right-click an account** to open Claude Code with it, log it in again, show its folder or remove it.
+- The **terminal** button opens Claude Code with that account, the **window** button opens Claude Desktop with it. The first time, Desktop opens on its login screen; sign in there with that account.
+- **Right-click an account** to log it in again, show its folders, quit its Desktop window or remove it.
 - **Move to …** next to a running session continues it on another account.
-- **＋** adds an account and opens its login.
-- **Settings** (gear icon) sets the refresh interval, the automatic default switch, launch at login, what the menu bar icon shows and the update channel.
+- **Settings** (gear icon) sets the refresh interval, the automatic default switch, Claude Desktop, launch at login, the menu bar label and the update channel.
 
-## How it works
-
-Accounts other than `main` live in `~/.cswap/<name>`, and `cswap <name>` starts Claude Code with `CLAUDE_CONFIG_DIR` pointing there. Claude Code then stores that account's login in its own Keychain item, so logins never collide.
-
-| | Shared with `~/.claude` (symlink) | Own per account |
-|---|---|---|
-| Files | `settings.json`, `keybindings.json`, `statusline.sh`, top-level `*.md` | `.claude.json`, `history.jsonl` |
-| Folders | `projects`, `skills`, `plugins`, `hooks`, `agents`, `commands`, `plans`, `tasks`, `todos`, `themes`, `file-history`, `output-styles` | `sessions`, caches, logs |
-| Login | — | Keychain item `Claude Code-credentials-<hash>` |
-
-On every start, new shared items are linked, and `mcpServers` plus per-project trust, allowed tools and MCP servers from the main `.claude.json` are merged in. The merge takes Claude Code's own advisory lock.
-
-**`/swap` and Move.** The shell integration wraps `claude` and `cswap <account>` in a small loop. `/swap` runs `cswap move` while Claude Code expands the command. It leaves a note for the loop and ends the session's process, and the loop resumes the conversation in the other account. Transcripts are shared, so nothing is lost. A session started without the shell integration continues in a new terminal window in the same project folder.
-
-**Usage.** CSwap reads each account's access token from the Keychain and asks Anthropic's usage endpoint. That endpoint allows roughly 30 requests per hour per account, so the app and `cswap` share one cache, poll every 5 minutes by default and back off on rate limits. An account whose token has expired shows as idle until Claude Code uses it again. Refreshing the token from outside would spend Claude Code's single-use refresh token and log the account out, which is why CSwap leaves it alone.
-
-**Why no hot-swap of one login.** Tools that copy one shared login back and forth eventually log you out: Claude Code's refresh tokens are single-use, so a copied login goes stale the moment a running session refreshes it. Separate folders avoid that entirely.
-
-Claude Desktop and claude.ai in the browser aren't affected. Use separate browser profiles for those.
+> [!IMPORTANT]
+> With more than one Desktop window open, the Claude icon in the Dock only brings an existing window to the front. Open the account you want from CSwap.
 
 ## Uninstall
 

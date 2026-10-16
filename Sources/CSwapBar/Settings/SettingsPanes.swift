@@ -4,7 +4,8 @@ import SwiftUI
 struct GeneralSettingsPane: View {
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 5
     @AppStorage("autoSwitchDefault") private var autoSwitchDefault = true
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @AppStorage("showsClaudeDesktop") private var showsClaudeDesktop = true
+    @State private var launchAtLogin = Self.launchesAtLogin
     @State private var launchAtLoginError: String?
 
     var body: some View {
@@ -36,31 +37,41 @@ struct GeneralSettingsPane: View {
                 .toggleStyle(.switch)
             }
 
+            Section("Claude Desktop") {
+                Toggle(isOn: $showsClaudeDesktop) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Open Claude Desktop per account")
+                        Text("Each account gets its own Claude Desktop window with its own login, side by side. MCP servers from your normal Desktop setup carry over; extensions are installed per window.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+                .disabled(!AppState.shared.isDesktopInstalled)
+
+                if !AppState.shared.isDesktopInstalled {
+                    Text("Claude Desktop isn't installed.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Startup") {
-                Toggle(isOn: $launchAtLogin) {
+                Toggle(isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin)) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Launch at login")
                         if let launchAtLoginError {
                             Text(launchAtLoginError)
                                 .font(.caption)
                                 .foregroundStyle(.red)
+                        } else if SMAppService.mainApp.status == .requiresApproval {
+                            Text("Waiting for approval in System Settings > General > Login Items.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
                 .toggleStyle(.switch)
-                .onChange(of: launchAtLogin) { _, enabled in
-                    do {
-                        if enabled {
-                            try SMAppService.mainApp.register()
-                        } else {
-                            try SMAppService.mainApp.unregister()
-                        }
-                        launchAtLoginError = nil
-                    } catch {
-                        launchAtLoginError = error.localizedDescription
-                        launchAtLogin = SMAppService.mainApp.status == .enabled
-                    }
-                }
             }
         }
         .formStyle(.grouped)
@@ -69,6 +80,28 @@ struct GeneralSettingsPane: View {
         .onChange(of: refreshIntervalMinutes) { _, _ in
             AppState.shared.restartUsageTimer()
         }
+    }
+
+    /// `.requiresApproval` means registered but waiting for the user in
+    /// System Settings; showing it as off would invite a second register.
+    private static var launchesAtLogin: Bool {
+        [.enabled, .requiresApproval].contains(SMAppService.mainApp.status)
+    }
+
+    /// Runs from the toggle's binding, not `onChange`, so resetting the
+    /// switch after a failure doesn't trigger the opposite call.
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            launchAtLoginError = nil
+        } catch {
+            launchAtLoginError = error.localizedDescription
+        }
+        launchAtLogin = Self.launchesAtLogin
     }
 }
 

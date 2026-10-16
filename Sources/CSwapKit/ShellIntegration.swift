@@ -63,7 +63,7 @@ public struct ShellIntegration {
         let home = store.home
         switch shell {
         case .zsh:
-            let dir = environment["ZDOTDIR"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) } ?? home
+            let dir = zshConfigDirectory.map { URL(fileURLWithPath: $0) } ?? home
             return [dir.appendingPathComponent(".zshrc")]
         case .bash:
             // Terminal windows on macOS start login shells, which skip
@@ -72,6 +72,30 @@ public struct ShellIntegration {
             let loginFile = login.first { FileManager.default.fileExists(atPath: $0.path) } ?? login[0]
             return [home.appendingPathComponent(".bashrc"), loginFile]
         }
+    }
+
+    /// `ZDOTDIR` usually comes from `~/.zshenv`, which apps started from
+    /// Finder never read. Ask zsh itself when the variable is missing, so
+    /// setup from the menu bar writes the same `.zshrc` a terminal reads.
+    var zshConfigDirectory: String? {
+        if let dir = environment["ZDOTDIR"], !dir.isEmpty { return dir }
+        // Tests relocate HOME through CSWAP_HOME; never read the real ~/.zshenv there.
+        guard environment["CSWAP_HOME"].map({ $0.isEmpty }) ?? true,
+              FileManager.default.isExecutableFile(atPath: "/bin/zsh") else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-c", "print -r -- \"$ZDOTDIR\""]
+        var env = environment
+        env.removeValue(forKey: "ZDOTDIR")
+        process.environment = env
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        process.waitUntilExit()
+        let dir = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return dir.isEmpty || dir == store.home.path ? nil : dir
     }
 
     /// Shells to set up: the login shell, plus any other supported shell
@@ -170,6 +194,10 @@ public struct ShellIntegration {
           *i*) if [ -n "$CLAUDECODE" ]; then unset \(leaked); fi ;;
         esac
 
+        # An alias of the same name would turn `claude() {` into a parse error
+        # in zsh and bash, and the whole file would stop loading.
+        unalias claude cswap cseat 2>/dev/null
+
         _cswap_session() {
           local handoff=\(handoff) rc line
           local -a next
@@ -185,7 +213,7 @@ public struct ShellIntegration {
           return $rc
         }
 
-        claude() {
+        function claude {
           if [ -n "$CLAUDE_CONFIG_DIR" ] || [ ! -x \(cli) ]; then
             command claude "$@"
             return
@@ -195,7 +223,7 @@ public struct ShellIntegration {
 
         # `cswap <account>` starts through the same wrapper, so /swap and the
         # menu bar's Move restart those sessions in their own tab too.
-        cswap() {
+        function cswap {
           if [ ! -x \(cli) ]; then
             command cswap "$@"
             return
@@ -215,7 +243,7 @@ public struct ShellIntegration {
             script += """
 
             # The command used to be called cseat.
-            cseat() { cswap "$@"; }
+            function cseat { cswap "$@"; }
 
             """
         }
@@ -227,6 +255,7 @@ public struct ShellIntegration {
 public enum CLICommands {
     public static let names = [
         "list", "ls", "status", "use", "best", "move", "swap", "sessions", "add", "login",
-        "remove", "rm", "sync", "setup", "doctor", "run", "help", "version",
+        "remove", "rm", "sync", "setup", "doctor", "run", "help", "version", "desktop",
+        "--help", "-h", "--version", "-v",
     ]
 }

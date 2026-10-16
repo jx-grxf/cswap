@@ -159,6 +159,9 @@ private final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
     }
 
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        // Network errors land here too; keep a known update badge until a
+        // check actually finds nothing.
+        guard (error as NSError).code == Int(SUError.noUpdateError.rawValue) else { return }
         onNoPendingUpdate?()
     }
 

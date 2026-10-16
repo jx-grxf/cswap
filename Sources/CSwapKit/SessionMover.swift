@@ -99,11 +99,14 @@ public struct SessionMover {
     /// in `target`. `cliPath` is used for the new-window fallback.
     public func move(to target: Seat, cliPath: String) throws -> Handoff {
         try checkDifferentAccount(target)
-        guard let sessionID = environment["CLAUDE_CODE_SESSION_ID"], !sessionID.isEmpty else {
-            throw MoveError.notInSession
-        }
         guard let claude = ProcessTable.current().claudeAncestor(of: getpid()) else {
             throw MoveError.noClaudeProcess
+        }
+        // After /clear or /resume the process continues another conversation
+        // than the one its environment was started with; its record is current.
+        let recorded = store.runningSessions(of: currentSeat()).first { $0.pid == claude.pid }?.sessionId
+        guard let sessionID = recorded ?? environment["CLAUDE_CODE_SESSION_ID"], !sessionID.isEmpty else {
+            throw MoveError.notInSession
         }
         return try handOff(
             claude: claude, sessionID: sessionID,

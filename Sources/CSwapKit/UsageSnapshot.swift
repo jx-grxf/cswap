@@ -93,11 +93,11 @@ public enum UsageProblem: Codable, Equatable, Error, Sendable {
 
     public var shortText: String {
         switch self {
-        case .notLoggedIn: return "not logged in yet"
-        case .idle: return "idle — updates the next time this account runs"
-        case .unauthorized: return "login no longer valid — log in again"
-        case .rateLimited: return "usage API rate-limited, retrying later"
-        case .network: return "offline — will retry"
+        case .notLoggedIn: return "Not logged in yet"
+        case .idle: return "Idle. Updates the next time this account runs"
+        case .unauthorized: return "Login expired. Log in again"
+        case .rateLimited: return "Usage limit for checks reached, retrying later"
+        case .network: return "Offline, retrying"
         }
     }
 }
