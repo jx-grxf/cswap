@@ -170,6 +170,10 @@ public struct ShellIntegration {
           *i*) if [ -n "$CLAUDECODE" ]; then unset \(leaked); fi ;;
         esac
 
+        # An alias of the same name would turn `claude() {` into a parse error
+        # in zsh and bash, and the whole file would stop loading.
+        unalias claude cswap cseat 2>/dev/null
+
         _cswap_session() {
           local handoff=\(handoff) rc line
           local -a next
@@ -185,7 +189,7 @@ public struct ShellIntegration {
           return $rc
         }
 
-        claude() {
+        function claude {
           if [ -n "$CLAUDE_CONFIG_DIR" ] || [ ! -x \(cli) ]; then
             command claude "$@"
             return
@@ -195,7 +199,7 @@ public struct ShellIntegration {
 
         # `cswap <account>` starts through the same wrapper, so /swap and the
         # menu bar's Move restart those sessions in their own tab too.
-        cswap() {
+        function cswap {
           if [ ! -x \(cli) ]; then
             command cswap "$@"
             return
@@ -215,7 +219,7 @@ public struct ShellIntegration {
             script += """
 
             # The command used to be called cseat.
-            cseat() { cswap "$@"; }
+            function cseat { cswap "$@"; }
 
             """
         }
@@ -227,6 +231,7 @@ public struct ShellIntegration {
 public enum CLICommands {
     public static let names = [
         "list", "ls", "status", "use", "best", "move", "swap", "sessions", "add", "login",
-        "remove", "rm", "sync", "setup", "doctor", "run", "help", "version",
+        "remove", "rm", "sync", "setup", "doctor", "run", "help", "version", "desktop",
+        "--help", "-h", "--version", "-v",
     ]
 }

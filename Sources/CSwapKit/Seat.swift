@@ -51,7 +51,8 @@ public struct Seat: Identifiable, Hashable, Sendable {
 
     /// Slugs become directory names and CLI arguments, so keep them boring.
     public static func isValidSlug(_ slug: String) -> Bool {
-        guard (1...32).contains(slug.count), slug != mainSlug else { return false }
+        // A name like `desktop` would be shadowed by the subcommand.
+        guard (1...32).contains(slug.count), slug != mainSlug, !CLICommands.names.contains(slug) else { return false }
         guard let first = slug.unicodeScalars.first, CharacterSet.lowercaseLetters.contains(first) else {
             return false
         }
@@ -65,6 +66,9 @@ public struct Seat: Identifiable, Hashable, Sendable {
 public struct SeatProfile: Equatable, Sendable {
     public var email: String
     public var organizationName: String?
+    /// claude.ai account id; Claude Desktop records the same id, which is
+    /// how a Desktop profile is matched to its seat.
+    public var accountUUID: String?
 }
 
 /// One live Claude Code process, as recorded in `<config>/sessions/<pid>.json`.

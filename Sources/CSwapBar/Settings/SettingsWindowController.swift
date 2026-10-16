@@ -52,9 +52,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     override func showWindow(_ sender: Any?) {
+        let wasVisible = window?.isVisible == true
         super.showWindow(sender)
         window?.makeKeyAndOrderFront(nil)
-        AppActivationPolicy.enter()
+        if wasVisible {
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            AppActivationPolicy.enter()
+        }
     }
 
     func windowWillClose(_ notification: Notification) {

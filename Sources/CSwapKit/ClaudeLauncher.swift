@@ -73,7 +73,17 @@ public enum ClaudeLauncher {
         }
 
         var pid = pid_t()
-        let spawnStatus = posix_spawn(&pid, claude, nil, nil, argv, envp)
+        // The caller may ignore SIGINT while it waits; the child must not
+        // inherit that, or Ctrl-C can't cancel it.
+        var attributes: posix_spawnattr_t?
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        var defaults = sigset_t()
+        sigemptyset(&defaults)
+        sigaddset(&defaults, SIGINT)
+        posix_spawnattr_setsigdefault(&attributes, &defaults)
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSIGDEF))
+        let spawnStatus = posix_spawn(&pid, claude, nil, &attributes, argv, envp)
         guard spawnStatus == 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: spawnStatus) ?? .ENOEXEC)
         }

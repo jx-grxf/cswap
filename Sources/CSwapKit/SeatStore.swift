@@ -211,7 +211,10 @@ public struct SeatStore: Sendable {
         try lock.acquire()
         defer { lock.release() }
 
-        let original = readJSON(seat.claudeJSONURL) ?? [:]
+        // An existing file that doesn't parse (half-written, empty) would be
+        // replaced by the shared keys alone, dropping the seat's login profile.
+        let exists = fileManager.fileExists(atPath: seat.claudeJSONURL.path)
+        guard let original = readJSON(seat.claudeJSONURL) ?? (exists ? nil : [:]) else { return false }
         var merged = original
 
         // Main wins on conflicts, but nothing a seat added itself is dropped.
@@ -254,7 +257,11 @@ public struct SeatStore: Sendable {
         guard let root = readJSON(seat.claudeJSONURL),
               let account = root["oauthAccount"] as? [String: Any],
               let email = account["emailAddress"] as? String else { return nil }
-        return SeatProfile(email: email, organizationName: account["organizationName"] as? String)
+        return SeatProfile(
+            email: email,
+            organizationName: account["organizationName"] as? String,
+            accountUUID: account["accountUuid"] as? String
+        )
     }
 
     /// Number of live Claude Code processes in this seat. Claude Code keeps
