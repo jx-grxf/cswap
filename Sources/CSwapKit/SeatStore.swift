@@ -32,14 +32,17 @@ public struct SeatStore: Sendable {
     /// transcripts, settings, skills, plugins, hooks. Everything else — login,
     /// `.claude.json`, prompt history, live session records — stays per seat.
     public static let sharedDirectories = [
-        "agents", "commands", "file-history", "hooks", "output-styles", "plans",
+        "agents", "chrome", "commands", "file-history", "hooks", "output-styles", "plans",
         "plugins", "projects", "security-skills", "skills", "tasks", "themes", "todos",
     ]
     public static let sharedFiles = ["settings.json", "keybindings.json", "statusline.sh"]
 
     /// `.claude.json` keys copied from the main account into each seat, so
-    /// user-scoped MCP servers follow every account.
-    public static let sharedTopLevelKeys = ["mcpServers"]
+    /// user-scoped MCP servers and the Chrome extension pairing follow every
+    /// account. Without the pairing a seat starts without the claude-in-chrome tools.
+    public static let sharedTopLevelKeys = [
+        "mcpServers", "chromeExtension", "hasCompletedClaudeInChromeOnboarding", "claudeInChromeDefaultEnabled",
+    ]
     /// Per-project keys copied the same way: trust, permissions and
     /// project-scoped MCP servers.
     public static let sharedProjectKeys = [
