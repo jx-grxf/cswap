@@ -3,7 +3,6 @@ import SwiftUI
 
 struct MenuContentView: View {
     @EnvironmentObject private var store: AppState
-    @State private var showAddSheet = false
     @State private var pendingRemoval: SeatInfo?
     @State private var updates = UpdateService.shared
     @AppStorage("showsClaudeDesktop") private var showsClaudeDesktop = true
@@ -31,10 +30,6 @@ struct MenuContentView: View {
             store.reload()
             await store.refreshUsage()
         }
-        .sheet(isPresented: $showAddSheet) {
-            AddAccountSheet()
-                .environmentObject(store)
-        }
     }
 
     // MARK: - Header
@@ -59,7 +54,7 @@ struct MenuContentView: View {
 
             Spacer()
 
-            headerButton("plus", help: "Add Account") { showAddSheet = true }
+            headerButton("plus", help: "Add Account") { AddAccountWindowController.show() }
             headerButton("arrow.clockwise", help: "Refresh usage") {
                 Task { await store.refreshUsage(force: true) }
             }
@@ -155,7 +150,7 @@ struct MenuContentView: View {
 
     private var addHint: some View {
         Button {
-            showAddSheet = true
+            AddAccountWindowController.show()
         } label: {
             Label("Add another account", systemImage: "plus.circle")
                 .font(.callout)
