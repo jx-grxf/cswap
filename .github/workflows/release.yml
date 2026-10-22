@@ -40,7 +40,8 @@ jobs:
           set -euo pipefail
           tag="${INPUT_TAG:-$GITHUB_REF_NAME}"
           version="${tag#v}"
-          build="$GITHUB_RUN_NUMBER"
+          # Same scheme as build-app.sh, so a locally built copy never outranks a release for Sparkle.
+          build="$(git rev-list --count HEAD)"
           [[ "$tag" == v* ]] || { echo "error: release tag must start with v" >&2; exit 1; }
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]] || {
             echo "error: unsupported release version $version" >&2
