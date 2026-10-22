@@ -8,7 +8,7 @@ import SwiftUI
 /// watches for it to land.
 struct AddAccountSheet: View {
     @EnvironmentObject private var store: AppState
-    @Environment(\.dismiss) private var dismiss
+    let close: () -> Void
 
     @State private var name = ""
     @State private var email = ""
@@ -41,7 +41,7 @@ struct AddAccountSheet: View {
 
             HStack {
                 Spacer()
-                Button(created?.isLoggedIn == true ? "Done" : "Close") { dismiss() }
+                Button(created?.isLoggedIn == true ? "Done" : "Close") { close() }
                     .keyboardShortcut(.cancelAction)
             }
         }

@@ -3,8 +3,6 @@ import SwiftUI
 
 struct MenuContentView: View {
     @EnvironmentObject private var store: AppState
-    @State private var showAddSheet = false
-    @State private var pendingRemoval: SeatInfo?
     @State private var updates = UpdateService.shared
     @AppStorage("showsClaudeDesktop") private var showsClaudeDesktop = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -31,10 +29,6 @@ struct MenuContentView: View {
             store.reload()
             await store.refreshUsage()
         }
-        .sheet(isPresented: $showAddSheet) {
-            AddAccountSheet()
-                .environmentObject(store)
-        }
     }
 
     // MARK: - Header
@@ -59,7 +53,7 @@ struct MenuContentView: View {
 
             Spacer()
 
-            headerButton("plus", help: "Add Account") { showAddSheet = true }
+            headerButton("plus", help: "Add Account") { AddAccountWindowController.show() }
             headerButton("arrow.clockwise", help: "Refresh usage") {
                 Task { await store.refreshUsage(force: true) }
             }
@@ -131,7 +125,7 @@ struct MenuContentView: View {
                         onRevealDesktop: { store.revealDesktopFolder(info) },
                         onLogIn: { store.logIn(info.seat) },
                         onReveal: { store.revealInFinder(info) },
-                        onRemove: { pendingRemoval = info }
+                        onRemove: { confirmRemoval(info) }
                     )
                 }
                 if store.seats.count < 2 {
@@ -142,20 +136,26 @@ struct MenuContentView: View {
         }
         .frame(maxHeight: 480)
         .fixedSize(horizontal: false, vertical: true)
-        .confirmationDialog(
-            "Remove \(pendingRemoval?.email ?? pendingRemoval?.title ?? "account")?",
-            isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } }),
-            presenting: pendingRemoval
-        ) { info in
-            Button("Remove", role: .destructive) { store.remove(info) }
-        } message: { _ in
-            Text("Deletes this account's folder and login. Shared memory, settings and skills stay.")
+    }
+
+    /// An NSAlert rather than a confirmationDialog: a dialog attached to the
+    /// menu bar window closes together with it once focus moves.
+    private func confirmRemoval(_ info: SeatInfo) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Remove \(info.email ?? info.title)?"
+        alert.informativeText = "Deletes this account's folder and login. Shared memory, settings and skills stay."
+        alert.addButton(withTitle: "Remove").hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            store.remove(info)
         }
     }
 
     private var addHint: some View {
         Button {
-            showAddSheet = true
+            AddAccountWindowController.show()
         } label: {
             Label("Add another account", systemImage: "plus.circle")
                 .font(.callout)
