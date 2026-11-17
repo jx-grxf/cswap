@@ -25,7 +25,8 @@ struct CSwapCLI {
             section("ACCOUNTS", [
                 ("cswap add <name> [--email a]", "Create an account and log it in"),
                 ("cswap login <name> [--email a]", "Log an account in again"),
-                ("cswap use <name>", "Make it the default for new sessions"),
+                ("cswap default [name]", "Show or set the account plain `claude` starts"),
+                ("cswap use <name>", "Same as cswap default <name>"),
                 ("cswap best", "Make the account with the most quota left the default"),
                 ("cswap remove <name> [--yes]", "Delete an account and its login"),
             ]),
@@ -63,6 +64,12 @@ struct CSwapCLI {
                 await list(force: args.contains("--refresh"))
             case "use":
                 try use(try requireSeat(args.first))
+            case "default":
+                if let name = args.first {
+                    try use(try requireSeat(name))
+                } else {
+                    showDefault()
+                }
             case "best":
                 try await best()
             case "move", "swap":
@@ -110,6 +117,7 @@ struct CSwapCLI {
     static func list(force: Bool) async {
         let seats = store.seats()
         let defaultSlug = store.defaultSeat().slug
+        let preferredSlug = store.preferredSeat().slug
         var cache = UsageCache.load()
         let fetcher = SeatUsageFetcher()
 
@@ -134,15 +142,18 @@ struct CSwapCLI {
         let nameWidth = max(seats.map(\.slug.count).max() ?? 4, 4)
         let indent = String(repeating: " ", count: nameWidth + 4)
         for seat in seats {
-            let isDefault = seat.slug == defaultSlug
-            let marker = isDefault ? Style.green("●") : " "
+            let isDefault = seat.slug == preferredSlug
+            let isActive = seat.slug == defaultSlug
+            let marker = isActive ? Style.green("●") : " "
             let name = seat.slug.padding(toLength: nameWidth, withPad: " ", startingAt: 0)
             let credentials = reader.credentials(for: seat)
             let email = credentials == nil ? Style.dim("not logged in") : store.profile(of: seat)?.email ?? Style.dim("not logged in")
             let plan = credentials?.planLabel.map { " " + Style.cyan($0) } ?? ""
             let sessions = store.runningSessions(of: seat).count
             let running = sessions > 0 ? Style.dim("  \(sessions) running") : ""
-            let badge = isDefault ? Style.dim("  default") : ""
+            let badge = isDefault
+                ? Style.dim(isActive ? "  default" : "  default, at its limit")
+                : isActive ? Style.dim("  for now") : ""
             let desktop = desktopProfiles[seat.slug].flatMap(DesktopProfileStore.preferred)?.isRunning == true
                 ? Style.dim("  desktop open") : ""
             print("\(marker) \(Style.bold(name))  \(email)\(plan)\(badge)\(running)\(desktop)")
@@ -164,6 +175,17 @@ struct CSwapCLI {
         let who = store.profile(of: seat)?.email ?? "not logged in yet"
         print(Style.green("✓ ") + "New sessions use \(Style.bold(seat.slug)) (\(who)).")
         print(Style.dim("  Running sessions keep their account; move one with /swap inside it. Don't use /login there."))
+    }
+
+    static func showDefault() {
+        let preferred = store.preferredSeat()
+        let current = store.defaultSeat()
+        let who = store.profile(of: preferred)?.email ?? "not logged in yet"
+        print("Default: \(Style.bold(preferred.slug)) (\(who))")
+        if current != preferred {
+            print(Style.dim("  At its limit; new sessions use \(current.slug) until it has room again."))
+        }
+        print(Style.dim("  Start another account once with: cswap <name>"))
     }
 
     static func best() async throws {

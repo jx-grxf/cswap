@@ -254,7 +254,7 @@ public struct ShellIntegration {
 /// Subcommands of `cswap`; anything else is an account name.
 public enum CLICommands {
     public static let names = [
-        "list", "ls", "status", "use", "best", "move", "swap", "sessions", "add", "login",
+        "list", "ls", "status", "use", "default", "best", "move", "swap", "sessions", "add", "login",
         "remove", "rm", "sync", "setup", "doctor", "run", "help", "version", "desktop",
         "--help", "-h", "--version", "-v",
     ]

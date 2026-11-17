@@ -73,6 +73,7 @@ public struct SeatStore: Sendable {
     public var usesLegacyRoot: Bool { root.lastPathComponent == ".claude-seats" }
     public var mainSeat: Seat { Seat(slug: Seat.mainSlug, configDir: home.appendingPathComponent(".claude")) }
     private var defaultFileURL: URL { root.appendingPathComponent(".default") }
+    private var preferredFileURL: URL { root.appendingPathComponent(".preferred") }
 
     private var fileManager: FileManager { .default }
 
@@ -104,12 +105,40 @@ public struct SeatStore: Sendable {
     }
 
     private func readDefaultSlug() -> String? {
-        (try? String(contentsOf: defaultFileURL, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        readSlug(at: defaultFileURL)
     }
 
+    private func readSlug(at url: URL) -> String? {
+        (try? String(contentsOf: url, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The account the user picked as their default. `defaultSeat()` only
+    /// differs from it while the app has moved new sessions elsewhere
+    /// because this one hit its limit.
+    public func preferredSeat() -> Seat {
+        readSlug(at: preferredFileURL).flatMap(seat(named:)) ?? defaultSeat()
+    }
+
+    public var hasPreferredSeat: Bool {
+        readSlug(at: preferredFileURL).flatMap(seat(named:)) != nil
+    }
+
+    /// The user's own choice: new sessions use `seat` from now on, and the
+    /// app returns to it after a limit switch.
     public func setDefault(_ seat: Seat) throws {
+        try writeSlug(seat.slug, to: preferredFileURL)
+        try writeSlug(seat.slug, to: defaultFileURL)
+    }
+
+    /// Moves new sessions to `seat` for now, keeping the user's choice.
+    public func setTemporaryDefault(_ seat: Seat) throws {
+        if !hasPreferredSeat { try writeSlug(defaultSeat().slug, to: preferredFileURL) }
+        try writeSlug(seat.slug, to: defaultFileURL)
+    }
+
+    private func writeSlug(_ slug: String, to url: URL) throws {
         try ensureRoot()
-        try Data((seat.slug + "\n").utf8).write(to: defaultFileURL, options: .atomic)
+        try Data((slug + "\n").utf8).write(to: url, options: .atomic)
     }
 
     // MARK: - Create / remove
@@ -135,8 +164,15 @@ public struct SeatStore: Sendable {
         guard fileManager.fileExists(atPath: seat.configDir.path) else { throw SeatError.notFound(seat.slug) }
         SeatCredentialReader().deleteKeychainItem(for: seat)
         try fileManager.removeItem(at: seat.configDir)
+        if readSlug(at: preferredFileURL) == seat.slug {
+            try? fileManager.removeItem(at: preferredFileURL)
+        }
         if readDefaultSlug() == seat.slug {
-            try? fileManager.removeItem(at: defaultFileURL)
+            if hasPreferredSeat {
+                try? writeSlug(preferredSeat().slug, to: defaultFileURL)
+            } else {
+                try? fileManager.removeItem(at: defaultFileURL)
+            }
         }
     }
 

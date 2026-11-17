@@ -65,7 +65,7 @@ final class SeatWatcher {
         if path.contains("/sessions/") || path.hasSuffix("/sessions") { return .sessions }
         let name = (path as NSString).lastPathComponent
         let parent = (path as NSString).deletingLastPathComponent
-        if parent == seatsRoot, !name.hasPrefix(".") || name == ".default" { return .seats }
+        if parent == seatsRoot, !name.hasPrefix(".") || name == ".default" || name == ".preferred" { return .seats }
         if name == ".claude.json" || name == ".credentials.json" { return .seats }
         return nil
     }
