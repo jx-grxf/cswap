@@ -28,6 +28,9 @@ final class AppState: ObservableObject {
 
     @Published private(set) var seats: [SeatInfo] = []
     @Published private(set) var defaultSlug = Seat.mainSlug
+    /// The account the user picked; differs from `defaultSlug` only while
+    /// new sessions avoid it because it hit its limit.
+    @Published private(set) var preferredSlug = Seat.mainSlug
     @Published private(set) var usage: [String: UsageSnapshot] = [:]
     @Published private(set) var usageProblems: [String: UsageProblem] = [:]
     @Published private(set) var isRefreshingUsage = false
@@ -54,6 +57,10 @@ final class AppState: ObservableObject {
     /// refreshes — the usage endpoint budget (~30/hour/account) is precious.
     private var backoffUntil: [String: Date] = [:]
     private var failureCounts: [String: Int] = [:]
+
+    var preferredSeat: SeatInfo? {
+        seats.first { $0.id == preferredSlug }
+    }
 
     var defaultSeat: SeatInfo? {
         seats.first { $0.id == defaultSlug }
@@ -173,6 +180,7 @@ final class AppState: ObservableObject {
             usage[info.id] = nil
         }
         defaultSlug = store.defaultSeat().slug
+        preferredSlug = store.preferredSeat().slug
         isShellIntegrationInstalled = ShellIntegration(store: store).isInstalled
         reloadDesktop()
     }
@@ -217,17 +225,36 @@ final class AppState: ObservableObject {
     }
 
     /// When the default account's 5h or weekly window is full, new sessions would
-    /// start blocked. Hand the default to the account with the most room.
+    /// start blocked. Hand them to the account with the most room, and give them
+    /// back to the user's own default once that has room again.
     private func switchDefaultIfExhausted() {
-        guard autoSwitchDefault, let current = defaultSeat,
-              let room = usage[current.id]?.headroom, room <= 1 else { return }
+        guard let current = defaultSeat else { return }
+        if let preferred = preferredSeat, preferred.id != current.id,
+           !autoSwitchDefault || (preferred.isLoggedIn && headroom(preferred) > 5) {
+            moveNewSessions(to: preferred)
+            if autoSwitchDefault {
+                lastAction = "\(preferred.title) has room again — new sessions use it again."
+            }
+            return
+        }
+        guard autoSwitchDefault, let room = usage[current.id]?.headroom, room <= 1 else { return }
         let candidates = seats.filter { info in
             guard info.id != current.id, info.isLoggedIn, duplicate(of: info)?.id != current.id else { return false }
             return headroom(info) > 5
         }
         guard let best = candidates.max(by: { headroom($0) < headroom($1) }) else { return }
-        makeDefault(best)
-        lastAction = "\(current.title) is at its limit — new sessions now use \(best.email ?? best.title). Move running ones: /swap"
+        moveNewSessions(to: best)
+        lastAction = "\(current.title) is at its limit — new sessions now use \(best.email ?? best.title) until it has room again. Move running ones: /swap"
+    }
+
+    private func moveNewSessions(to info: SeatInfo) {
+        do {
+            try store.setTemporaryDefault(info.seat)
+            defaultSlug = info.id
+            preferredSlug = store.preferredSeat().slug
+        } catch {
+            errorMessage = friendlyMessage(error)
+        }
     }
 
     private func scheduleBackoff(for slug: String, after problem: UsageProblem) {
@@ -270,6 +297,7 @@ final class AppState: ObservableObject {
         do {
             try store.setDefault(info.seat)
             defaultSlug = info.id
+            preferredSlug = info.id
             lastAction = "New sessions use \(info.email ?? info.title). Move a running session: /swap"
             errorMessage = nil
         } catch {

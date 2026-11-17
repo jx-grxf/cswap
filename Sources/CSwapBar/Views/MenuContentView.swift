@@ -44,7 +44,7 @@ struct MenuContentView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("CSwap")
                     .font(.headline)
-                Text(store.defaultSeat.map { "New sessions: \($0.email ?? $0.title)" } ?? "No default account")
+                Text(newSessionsText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -103,6 +103,15 @@ struct MenuContentView: View {
         .background(Color.accentColor.opacity(0.08))
     }
 
+    private var newSessionsText: String {
+        guard let current = store.defaultSeat else { return "No default account" }
+        let name = current.email ?? current.title
+        if let preferred = store.preferredSeat, preferred.id != current.id {
+            return "New sessions: \(name) until \(preferred.title) has room"
+        }
+        return "New sessions: \(name)"
+    }
+
     // MARK: - Account list
 
     private var accountList: some View {
@@ -111,7 +120,8 @@ struct MenuContentView: View {
                 ForEach(store.seats) { info in
                     AccountRowView(
                         info: info,
-                        isDefault: info.id == store.defaultSlug,
+                        isDefault: info.id == store.preferredSlug,
+                        isActive: info.id == store.defaultSlug,
                         usage: store.usage[info.id],
                         problem: store.usageProblems[info.id],
                         duplicateOf: store.duplicate(of: info)?.title,

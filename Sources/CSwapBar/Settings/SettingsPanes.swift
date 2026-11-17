@@ -29,7 +29,7 @@ struct GeneralSettingsPane: View {
                 Toggle(isOn: $autoSwitchDefault) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Switch the default when it runs out")
-                        Text("When the default account hits its 5h or weekly limit, new sessions use the account with the most quota left. Running sessions keep their account until you move them.")
+                        Text("When the default account hits its 5h or weekly limit, new sessions use the account with the most quota left, and go back to the default once it has room again. Running sessions keep their account until you move them.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

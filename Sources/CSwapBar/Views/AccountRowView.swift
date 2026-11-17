@@ -3,7 +3,11 @@ import SwiftUI
 
 struct AccountRowView: View {
     let info: SeatInfo
+    /// The account the user picked as default.
     let isDefault: Bool
+    /// New sessions start here right now. Differs from `isDefault` while the
+    /// default is at its limit.
+    let isActive: Bool
     let usage: UsageSnapshot?
     let problem: UsageProblem?
     /// Short name of another account logged in to the same claude.ai login.
@@ -131,8 +135,16 @@ struct AccountRowView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
                     .padding(.trailing, 4)
+                    .help(isActive ? "New sessions start here" : "At its limit. New sessions come back here once it has room again.")
+            } else if isActive {
+                Label("For now", systemImage: "arrow.uturn.backward.circle")
+                    .labelStyle(.titleAndIcon)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, 4)
+                    .help("New sessions start here until your default has room again")
             } else if isHovering {
-                Text("Use for new sessions")
+                Text("Make default")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Color.accentColor)
                     .padding(.trailing, 4)
@@ -179,7 +191,7 @@ struct AccountRowView: View {
     @ViewBuilder
     private var contextMenu: some View {
         if !isDefault {
-            Button("Use for New Sessions", action: onMakeDefault)
+            Button("Make Default", action: onMakeDefault)
         }
         Button("Open Claude Code", action: onOpen)
             .disabled(!info.isLoggedIn)

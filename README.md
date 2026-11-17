@@ -30,7 +30,7 @@ Several Claude accounts on one Mac, all logged in at once. A menu bar app and th
 - Every account gets its own configuration folder (`CLAUDE_CONFIG_DIR`), the setup Anthropic [documents for multiple accounts](https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts). Each one logs in once and stays logged in.
 - Settings, skills, plugins, hooks, agents, commands, memory and transcripts are shared with your normal `~/.claude`. User MCP servers and per-project trust follow every account.
 - `/swap` inside a running session resumes the same conversation with another account, in the same tab. It works when the current account is already out of quota.
-- `cswap use work` or a click in the menu sets the account new `claude` sessions start with. When it hits its 5-hour or weekly limit, new sessions move to the account with the most quota left.
+- `cswap use work` or a click in the menu sets the account new `claude` sessions start with. When it hits its 5-hour or weekly limit, new sessions move to the account with the most quota left and come back once the default has room again. `cswap <name>` starts another account once without changing the default.
 
 **Claude Desktop**
 
@@ -89,7 +89,7 @@ $ cswap
            7d ███████████░░░░░░░░░  57%  resets in 4d 3h
 ```
 
-The dot marks the default account, the one plain `claude` starts.
+The dot marks the account plain `claude` starts. That is the default, or the account marked `for now` while the default is at its limit.
 
 ### Commands
 
@@ -101,7 +101,8 @@ The dot marks the default account, the one plain `claude` starts.
 | `claude [args…]` | Start the default account |
 | `cswap add <name> [--email a]` | Create an account and log it in |
 | `cswap login <name>` | Log an account in again |
-| `cswap use <name>` | Make it the default for new sessions |
+| `cswap default [name]` | Show or set the account plain `claude` starts |
+| `cswap use <name>` | Same as `cswap default <name>` |
 | `cswap best` | Make the account with the most quota left the default |
 | `cswap remove <name>` | Delete an account and its login; shared data stays |
 | `/swap [account]` | Inside a session: continue it with another account |
